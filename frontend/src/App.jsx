@@ -139,17 +139,23 @@ function App() {
       </div>
 
       {loading && <p className="text-gray-500 mb-4">Processing...</p>}
-
       {matchScore !== null && (
-        <div className="bg-gray-100 p-4 rounded mb-4">
-          <p className="font-semibold">Match Score: {matchScore}%</p>
-          {missingKeywords.length > 0 && (
-            <p className="text-sm text-red-600">
-              Missing Keywords: {missingKeywords.join(", ")}
-            </p>
-          )}
-        </div>
-      )}
+  <div className="bg-gray-100 p-4 rounded mt-4">
+    <p className="font-semibold">Match Score: <span className="text-blue-600">{matchScore}%</span></p>
+    {missingKeywords.length > 0 && (
+      <p className="text-sm text-red-600 mt-2">
+        Missing Keywords: {missingKeywords.join(", ")}
+      </p>
+    )}
+  </div>
+ )}
+
+{coverLetter && (
+  <div className="mt-6 bg-white border p-4 rounded shadow">
+    <h2 className="text-xl font-semibold mb-2">Generated Cover Letter</h2>
+    <pre className="whitespace-pre-wrap text-gray-800">{coverLetter}</pre>
+  </div>
+)}
 
       {coverLetter && (
         <div className="bg-white border p-4 rounded shadow mb-4">
