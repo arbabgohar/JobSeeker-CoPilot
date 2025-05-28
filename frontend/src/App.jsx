@@ -1,7 +1,23 @@
 import React, { useState } from "react";
 import axios from "axios";
-import * as pdfjs from 'pdf-parse';
-import mammoth from 'mammoth';
+import * as pdfjsLib from 'pdfjs-dist/build/pdf';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.entry';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+
+const extractPdfText = async (file) => {
+  const typedArray = new Uint8Array(await file.arrayBuffer());
+  const pdf = await pdfjsLib.getDocument({ data: typedArray }).promise;
+
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map((item) => item.str).join(' ');
+    text += pageText + '\n';
+  }
+  return text;
+};
+
 
 function App() {
   const [jobDescription, setJobDescription] = useState("");
@@ -12,49 +28,34 @@ function App() {
   const [coverLetter, setCoverLetter] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleFileUpload = async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  const handleFileUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
 
-    setFileName(file.name);
-    setLoading(true);
+  setFileName(file.name);
 
-    try {
-      const fileText = await extractTextFromFile(file);
-      setResume(fileText);
-    } catch (error) {
-      console.error("Error reading file:", error);
-      alert("Error reading file. Please try again.");
-    }
-
-    setLoading(false);
-  };
-
-  const extractTextFromFile = async (file) => {
+  if (file.type === "application/pdf") {
+    const text = await extractPdfText(file);
+    setResume(text);
+  } else if (
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  ) {
     const reader = new FileReader();
+    reader.onload = async () => {
+      const mammoth = await import("mammoth");
+      const result = await mammoth.extractRawText({ arrayBuffer: reader.result });
+      setResume(result.value);
+    };
+    reader.readAsArrayBuffer(file);
+  } else if (file.type === "text/plain") {
+    const reader = new FileReader();
+    reader.onload = () => setResume(reader.result);
+    reader.readAsText(file);
+  } else {
+    alert("Only PDF, DOCX, or TXT files are supported.");
+  }
+};
 
-    if (file.type === "application/pdf") {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdfData = await pdfjs(arrayBuffer);
-      return pdfData.text;
-    } 
-    
-    if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
-      const arrayBuffer = await file.arrayBuffer();
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      return result.value;
-    }
-    
-    if (file.type === "text/plain") {
-      return new Promise((resolve, reject) => {
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = (e) => reject(e);
-        reader.readAsText(file);
-      });
-    }
-
-    throw new Error("Unsupported file type");
-  };
 
   const analyzeMatch = async () => {
     setLoading(true);
