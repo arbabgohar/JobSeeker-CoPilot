@@ -1,35 +1,162 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React, { useState } from "react";
+import axios from "axios";
+import * as pdfjs from 'pdf-parse';
+import mammoth from 'mammoth';
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [jobDescription, setJobDescription] = useState("");
+  const [resume, setResume] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [matchScore, setMatchScore] = useState(null);
+  const [missingKeywords, setMissingKeywords] = useState([]);
+  const [coverLetter, setCoverLetter] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setFileName(file.name);
+    setLoading(true);
+
+    try {
+      const fileText = await extractTextFromFile(file);
+      setResume(fileText);
+    } catch (error) {
+      console.error("Error reading file:", error);
+      alert("Error reading file. Please try again.");
+    }
+
+    setLoading(false);
+  };
+
+  const extractTextFromFile = async (file) => {
+    const reader = new FileReader();
+
+    if (file.type === "application/pdf") {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfData = await pdfjs(arrayBuffer);
+      return pdfData.text;
+    } 
+    
+    if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      return result.value;
+    }
+    
+    if (file.type === "text/plain") {
+      return new Promise((resolve, reject) => {
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
+        reader.readAsText(file);
+      });
+    }
+
+    throw new Error("Unsupported file type");
+  };
+
+  const analyzeMatch = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post("http://localhost:8000/analyze-job", {
+        job_description: jobDescription,
+        resume: resume,
+      });
+      setMatchScore(response.data.match_score);
+      setMissingKeywords(response.data.missing_keywords);
+    } catch (error) {
+      console.error("Error analyzing match:", error);
+    }
+    setLoading(false);
+  };
+
+  const generateCoverLetter = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post("http://localhost:8000/generate-cover-letter", {
+        job_description: jobDescription,
+        resume: resume,
+      });
+      setCoverLetter(response.data.cover_letter);
+    } catch (error) {
+      console.error("Error generating cover letter:", error);
+    }
+    setLoading(false);
+  };
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="p-8 max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold mb-4">JobSeeker Copilot</h1>
+
+      <textarea
+        className="w-full p-2 border rounded mb-4"
+        rows="6"
+        placeholder="Paste Job Description"
+        value={jobDescription}
+        onChange={(e) => setJobDescription(e.target.value)}
+      />
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Upload Resume (PDF, DOCX, or TXT)
+        </label>
+        <input
+          type="file"
+          accept=".pdf,.docx,.txt"
+          onChange={handleFileUpload}
+          className="block w-full text-sm text-gray-500
+            file:mr-4 file:py-2 file:px-4
+            file:rounded-md file:border-0
+            file:text-sm file:font-semibold
+            file:bg-blue-50 file:text-blue-700
+            hover:file:bg-blue-100"
+        />
+        {fileName && (
+          <p className="mt-2 text-sm text-gray-600">
+            Selected file: {fileName}
+          </p>
+        )}
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={analyzeMatch}
+          disabled={!resume || !jobDescription}
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Analyze Match
         </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
+        <button
+          onClick={generateCoverLetter}
+          disabled={!resume || !jobDescription}
+          className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Generate Cover Letter
+        </button>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+
+      {loading && <p className="text-gray-500 mb-4">Processing...</p>}
+
+      {matchScore !== null && (
+        <div className="bg-gray-100 p-4 rounded mb-4">
+          <p className="font-semibold">Match Score: {matchScore}%</p>
+          {missingKeywords.length > 0 && (
+            <p className="text-sm text-red-600">
+              Missing Keywords: {missingKeywords.join(", ")}
+            </p>
+          )}
+        </div>
+      )}
+
+      {coverLetter && (
+        <div className="bg-white border p-4 rounded shadow mb-4">
+          <h2 className="text-xl font-semibold mb-2">Generated Cover Letter:</h2>
+          <pre className="whitespace-pre-wrap text-gray-800">{coverLetter}</pre>
+        </div>
+      )}
+    </div>
+  );
 }
 
-export default App
+export default App;
