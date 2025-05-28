@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import axios from "axios";
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.entry';
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.js?worker';
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
 
 const extractPdfText = async (file) => {
   const typedArray = new Uint8Array(await file.arrayBuffer());
